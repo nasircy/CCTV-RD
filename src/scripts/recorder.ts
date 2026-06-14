@@ -5,6 +5,7 @@ import {
   saveChunk,
   type RecordingMeta,
 } from './storage';
+import { pickRecordingFormat } from './format';
 
 export interface CamConfig {
   id: string;
@@ -15,18 +16,6 @@ export interface CamConfig {
 const CHUNK_MS = 30000;
 const SEGMENT_MS = 3600000;
 const MAX_RECORD_MS = 48 * 3600000;
-
-function pickMimeType(): string {
-  const candidates = [
-    'video/webm;codecs=vp9,opus',
-    'video/webm;codecs=vp8,opus',
-    'video/webm',
-  ];
-  for (const m of candidates) {
-    if (MediaRecorder.isTypeSupported(m)) return m;
-  }
-  return 'video/webm';
-}
 
 export class HlsPlayer {
   private hls: Hls | null = null;
@@ -206,6 +195,7 @@ export class BrowserRecorder {
   private video: HTMLVideoElement;
   private cam: CamConfig;
   private mimeType: string;
+  private fileExt: string;
   private recorder: MediaRecorder | null = null;
   private recording = false;
   private recordStart = 0;
@@ -221,7 +211,9 @@ export class BrowserRecorder {
   constructor(video: HTMLVideoElement, cam: CamConfig) {
     this.video = video;
     this.cam = cam;
-    this.mimeType = pickMimeType();
+    const fmt = pickRecordingFormat();
+    this.mimeType = fmt.mimeType;
+    this.fileExt = fmt.ext;
   }
 
   setCallbacks(
@@ -311,7 +303,7 @@ export class BrowserRecorder {
         const meta = await finalizeRecording({
           id: this.currentId,
           camId: this.cam.id,
-          name: `${name}.webm`,
+          name: `${name}.${this.fileExt}`,
           date: `${startDate.getFullYear()}-${pad(startDate.getMonth() + 1)}-${pad(startDate.getDate())}`,
           time: `${pad(startDate.getHours())}:${pad(startDate.getMinutes())}:${pad(startDate.getSeconds())}`,
           startTs: this.segmentStart,

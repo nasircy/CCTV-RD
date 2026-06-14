@@ -10,6 +10,7 @@ import {
   RETENTION_DAYS,
   type RecordingMeta,
 } from './storage';
+import { confirmDelete, showError, showPlayer, withProgress } from './swal';
 
 const CAM: CamConfig = {
   id: 'C000024',
@@ -136,7 +137,7 @@ function renderFiles(files: RecordingMeta[]) {
   }
 
   el.innerHTML =
-    `<div class="f-grp">${files.length} 段錄影</div>` +
+    `<div class="f-grp">${files.length} 段 · 下載為 MP4</div>` +
     files
       .map(
         (f) => `
@@ -145,7 +146,7 @@ function renderFiles(files: RecordingMeta[]) {
         <span class="f-sz">${formatSize(f.size)}</span>
         <span class="f-act">
           <button data-act="play">播放</button>
-          <button data-act="dl">下載</button>
+          <button data-act="dl">MP4</button>
           <button data-act="del">刪</button>
         </span>
       </div>`,
@@ -160,17 +161,32 @@ function renderFiles(files: RecordingMeta[]) {
     });
     item.querySelector('[data-act="dl"]')?.addEventListener('click', (e) => {
       e.stopPropagation();
-      const meta = files.find((f) => f.id === id);
-      if (meta) exportRecording(id, meta.name);
+      downloadMp4(id);
     });
-    item.querySelector('[data-act="del"]')?.addEventListener('click', async (e) => {
+    item.querySelector('[data-act="del"]')?.addEventListener('click', (e) => {
       e.stopPropagation();
-      if (!confirm('確定刪除此錄影？')) return;
-      await deleteRecording(id);
-      await refreshRecordings();
+      removeRecording(id);
     });
     item.addEventListener('click', () => openPlay(id));
   });
+}
+
+async function removeRecording(id: string) {
+  const meta = recordings.find((r) => r.id === id);
+  const ok = await confirmDelete(meta?.time ?? '此錄影');
+  if (!ok) return;
+  await deleteRecording(id);
+  await refreshRecordings();
+}
+
+async function downloadMp4(id: string) {
+  try {
+    await withProgress('匯出 MP4', (update) =>
+      exportRecording(id, update),
+    );
+  } catch {
+    showError('轉檔失敗', '檔案可能過大或瀏覽器記憶體不足，請稍後再試。');
+  }
 }
 
 function updateStats() {
@@ -203,35 +219,13 @@ async function refreshRecordings() {
 }
 
 async function openPlay(id: string) {
-  const modal = document.getElementById('modal');
-  const pb = document.getElementById('pb') as HTMLVideoElement;
-  const ttl = document.getElementById('modal-ttl');
   const meta = recordings.find((r) => r.id === id);
-  if (!modal || !pb) return;
-
-  if (ttl) ttl.textContent = meta?.name ?? '播放';
   const blob = await getRecordingBlob(id);
   if (!blob) {
-    alert('無法讀取錄影');
+    showError('無法讀取錄影');
     return;
   }
-  pb.src = URL.createObjectURL(blob);
-  pb.load();
-  pb.play().catch(() => {});
-  modal.classList.add('show');
-  document.body.style.overflow = 'hidden';
-}
-
-function closePlay() {
-  const modal = document.getElementById('modal');
-  const pb = document.getElementById('pb') as HTMLVideoElement;
-  modal?.classList.remove('show');
-  if (pb) {
-    pb.pause();
-    if (pb.src.startsWith('blob:')) URL.revokeObjectURL(pb.src);
-    pb.src = '';
-  }
-  document.body.style.overflow = '';
+  await showPlayer(meta?.name ?? meta?.time ?? '播放', blob);
 }
 
 function hideSplash() {
@@ -270,16 +264,11 @@ async function init() {
       await recorder!.stop();
     } else {
       const ok = await recorder!.start(48);
-      if (!ok) recBtn.disabled = false;
+      if (!ok) {
+        recBtn.disabled = false;
+        showError('無法開始錄影', '請確認直播已正常播放後再試。');
+      }
     }
-  });
-
-  document.getElementById('modal-close')?.addEventListener('click', closePlay);
-  document.getElementById('modal')?.addEventListener('click', (e) => {
-    if (e.target === e.currentTarget) closePlay();
-  });
-  document.addEventListener('keydown', (e) => {
-    if (e.key === 'Escape') closePlay();
   });
 
   await cleanupOldRecordings();

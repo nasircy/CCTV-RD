@@ -480,44 +480,41 @@ html, body {
   white-space: nowrap;
 }
 
-/* ── Modal ── */
-.modal {
-  position: fixed;
-  inset: 0;
-  background: rgba(0, 0, 0, 0.92);
-  z-index: 1000;
-  display: none;
-  align-items: center;
-  justify-content: center;
-  padding: 24px;
+/* ── SweetAlert2 ── */
+.ny-swal {
+  border: 1px solid var(--line2) !important;
+  border-radius: 2px !important;
+  font-family: 'Noto Sans TC', sans-serif !important;
 }
-.modal.show { display: flex; }
-.modal-inner {
+.ny-swal-title {
+  font-family: 'Barlow Condensed', sans-serif !important;
+  font-size: 18px !important;
+  letter-spacing: 1px !important;
+  color: var(--text) !important;
+}
+.ny-swal-body { font-size: 13px !important; color: var(--dim) !important; }
+.ny-swal-confirm, .ny-swal-cancel {
+  font-family: 'Noto Sans TC', sans-serif !important;
+  font-size: 13px !important;
+  border-radius: 0 !important;
+  box-shadow: none !important;
+}
+.ny-swal-close { color: var(--dim) !important; }
+.ny-swal-close:hover { color: var(--text) !important; }
+.swal-video {
   width: 100%;
-  max-width: 900px;
-  border: 1px solid var(--line2);
-  background: var(--surface);
+  max-height: 65vh;
+  background: #000;
+  display: block;
 }
-.modal-top {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  padding: 10px 14px;
-  border-bottom: 1px solid var(--line);
-  font-size: 12px;
+.swal-prog {
+  font-size: 13px;
   color: var(--dim);
+  letter-spacing: 0.5px;
 }
-.modal-x {
-  background: none;
-  border: 1px solid var(--line2);
-  color: var(--dim);
-  padding: 3px 10px;
-  font-size: 11px;
-  cursor: pointer;
-  font-family: 'Noto Sans TC', sans-serif;
+.swal2-loader {
+  border-color: var(--amber) transparent var(--amber) transparent !important;
 }
-.modal-x:hover { border-color: var(--text); color: var(--text); }
-#pb { width: 100%; display: block; background: #000; }
 
 @media (max-width: 800px) {
   .layout { grid-template-columns: 1fr; overflow-y: auto; }

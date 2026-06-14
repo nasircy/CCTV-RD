@@ -1,4 +1,5 @@
 import { openDB, type DBSchema, type IDBPDatabase } from 'idb';
+import { isMp4Mime } from './format';
 
 export interface RecordingMeta {
   id: string;
@@ -93,6 +94,11 @@ export async function finalizeRecording(
   return full;
 }
 
+export async function getRecordingMeta(id: string): Promise<RecordingMeta | undefined> {
+  const db = await getDB();
+  return db.get('recordings', id);
+}
+
 export async function listRecordings(camId?: string): Promise<RecordingMeta[]> {
   const db = await getDB();
   const all = await db.getAll('recordings');
@@ -157,15 +163,37 @@ export async function cleanupOldRecordings(): Promise<number> {
   return removed;
 }
 
-export async function exportRecording(id: string, filename: string): Promise<void> {
-  const blob = await getRecordingBlob(id);
-  if (!blob) return;
+function downloadBlob(blob: Blob, filename: string) {
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a');
   a.href = url;
-  a.download = filename.endsWith('.webm') ? filename : `${filename}.webm`;
+  a.download = filename;
   a.click();
   URL.revokeObjectURL(url);
+}
+
+function mp4Filename(name: string): string {
+  const base = name.replace(/\.(webm|mp4)$/i, '');
+  return `${base}.mp4`;
+}
+
+/** 下載錄影；WebM 會在前端轉成 MP4 再下載 */
+export async function exportRecording(
+  id: string,
+  onProgress?: (msg: string) => void,
+): Promise<void> {
+  const meta = await getRecordingMeta(id);
+  const blob = await getRecordingBlob(id);
+  if (!blob || !meta) return;
+
+  if (isMp4Mime(meta.mimeType)) {
+    downloadBlob(blob, mp4Filename(meta.name));
+    return;
+  }
+
+  const { convertWebmToMp4 } = await import('./convert');
+  const mp4 = await convertWebmToMp4(blob, onProgress);
+  downloadBlob(mp4, mp4Filename(meta.name));
 }
 
 export { RETENTION_DAYS };
