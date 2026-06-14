@@ -11,8 +11,8 @@ import {
 import { confirmDelete, showError, showPlayer, withProgress } from './swal';
 
 const CAM: CamConfig = {
-  id: 'C000024',
-  name: '板橋區四川路、中央路',
+  id: 'yang-cam',
+  name: '羊家門前',
   streamUrl: 'https://cctvatis3.ntpc.gov.tw/hls/C000024/live.m3u8',
 };
 
@@ -20,6 +20,15 @@ let recordings: RecordingMeta[] = [];
 let selDate: string | null = null;
 let player: HlsPlayer | null = null;
 let recorder: BrowserRecorder | null = null;
+
+let zoom = 1;
+let panX = 0;
+let panY = 0;
+let dragging = false;
+let dragStartX = 0;
+let dragStartY = 0;
+let dragPanX = 0;
+let dragPanY = 0;
 
 function fmtRemain(sec: number): string {
   if (sec <= 0) return '';
@@ -41,30 +50,119 @@ function setSignal(online: boolean) {
   const txt = document.getElementById('sig-txt');
   dot?.classList.toggle('on', online);
   dot?.classList.toggle('off', !online);
-  if (txt) txt.textContent = online ? '訊號正常' : '重新連線';
+  if (txt) txt.textContent = online ? 'ONLINE' : 'RECONNECT';
+}
+
+function applyTransform() {
+  const stage = document.getElementById('video-stage');
+  const lbl = document.getElementById('zoom-lvl');
+  if (stage) {
+    stage.style.transform = `translate(${panX}px, ${panY}px) scale(${zoom})`;
+  }
+  if (lbl) lbl.textContent = `${zoom.toFixed(1)}×`;
+  document.getElementById('viewport')?.classList.toggle('can-pan', zoom > 1);
+}
+
+function setZoom(level: number) {
+  zoom = level;
+  if (zoom <= 1) {
+    panX = 0;
+    panY = 0;
+  }
+  document.querySelectorAll('[data-zoom]').forEach((btn) => {
+    btn.classList.toggle('on', parseFloat((btn as HTMLElement).dataset.zoom!) === level);
+  });
+  applyTransform();
+}
+
+function resetView() {
+  setZoom(1);
+}
+
+function initViewport() {
+  const viewport = document.getElementById('viewport');
+  if (!viewport) return;
+
+  document.querySelectorAll('[data-zoom]').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      setZoom(parseFloat((btn as HTMLElement).dataset.zoom!));
+    });
+  });
+
+  document.getElementById('btn-fit')?.addEventListener('click', resetView);
+
+  document.getElementById('btn-fs')?.addEventListener('click', async () => {
+    const bezel = document.getElementById('bezel');
+    if (!bezel) return;
+    if (document.fullscreenElement) {
+      await document.exitFullscreen();
+    } else {
+      await bezel.requestFullscreen().catch(() => {});
+    }
+  });
+
+  viewport.addEventListener(
+    'wheel',
+    (e) => {
+      e.preventDefault();
+      const delta = e.deltaY > 0 ? -0.25 : 0.25;
+      const next = Math.min(4, Math.max(1, Math.round((zoom + delta) * 4) / 4));
+      setZoom(next);
+    },
+    { passive: false },
+  );
+
+  viewport.addEventListener('mousedown', (e) => {
+    if (zoom <= 1) return;
+    dragging = true;
+    dragStartX = e.clientX;
+    dragStartY = e.clientY;
+    dragPanX = panX;
+    dragPanY = panY;
+    viewport.classList.add('dragging');
+  });
+
+  window.addEventListener('mousemove', (e) => {
+    if (!dragging) return;
+    panX = dragPanX + (e.clientX - dragStartX);
+    panY = dragPanY + (e.clientY - dragStartY);
+    applyTransform();
+  });
+
+  window.addEventListener('mouseup', () => {
+    dragging = false;
+    viewport.classList.remove('dragging');
+  });
+
+  viewport.addEventListener('dblclick', () => {
+    if (zoom > 1) resetView();
+    else setZoom(2);
+  });
 }
 
 function updateRecUI(active: boolean, remaining: number) {
   const recBtn = document.getElementById('rec-btn') as HTMLButtonElement;
   const recTimer = document.getElementById('rec-timer');
   const recStat = document.getElementById('rec-status');
-  const recInd = document.getElementById('rec-ind');
+  const osdRec = document.getElementById('osd-rec');
+  const hdrDot = document.getElementById('hdr-rec-dot');
 
   if (active && remaining > 0) {
-    recBtn.textContent = '停止錄影';
+    recBtn.textContent = '■ STOP';
     recBtn.className = 'btn-rec active';
     recBtn.disabled = false;
     if (recStat) {
-      recStat.textContent = '錄影進行中';
+      recStat.textContent = 'REC · 錄影中';
       recStat.className = 'rec-hint on';
     }
-    recInd?.classList.add('show');
+    osdRec?.classList.add('show');
+    hdrDot?.classList.add('show');
     if (recTimer) {
       recTimer.textContent = fmtRemain(remaining);
       recTimer.className = 'rec-time' + (remaining < 300 ? ' warn' : '');
     }
   } else {
-    recBtn.textContent = '開始錄影';
+    recBtn.textContent = '● REC 開始';
     recBtn.className = 'btn-rec';
     recBtn.disabled = false;
     if (recTimer) {
@@ -72,10 +170,11 @@ function updateRecUI(active: boolean, remaining: number) {
       recTimer.className = 'rec-time';
     }
     if (recStat) {
-      recStat.textContent = '待機';
+      recStat.textContent = 'STBY · 待機';
       recStat.className = 'rec-hint';
     }
-    recInd?.classList.remove('show');
+    osdRec?.classList.remove('show');
+    hdrDot?.classList.remove('show');
   }
 }
 
@@ -95,7 +194,7 @@ function renderDates() {
   if (!el) return;
 
   if (!dates.length) {
-    el.innerHTML = '<div class="empty">尚無錄影</div>';
+    el.innerHTML = '<div class="empty">NO DATA</div>';
     return;
   }
 
@@ -104,7 +203,7 @@ function renderDates() {
     .map(
       (d) => `
     <div class="d-item ${d === selDate ? 'on' : ''}" data-d="${d}">
-      <span>${d === today ? '今天' : d}</span>
+      <span>${d === today ? 'TODAY' : d}</span>
       <span class="d-cnt">${g[d].length}</span>
     </div>`,
     )
@@ -130,12 +229,12 @@ function renderFiles(files: RecordingMeta[]) {
   if (!el) return;
 
   if (!files?.length) {
-    el.innerHTML = '<div class="empty">這天沒有錄影</div>';
+    el.innerHTML = '<div class="empty">NO CLIPS</div>';
     return;
   }
 
   el.innerHTML =
-    `<div class="f-grp">${files.length} 段 · 下載為 MP4</div>` +
+    `<div class="f-grp">${files.length} CLIPS · MP4 EXPORT</div>` +
     files
       .map(
         (f) => `
@@ -143,9 +242,9 @@ function renderFiles(files: RecordingMeta[]) {
         <span class="f-time">${f.time}</span>
         <span class="f-sz">${formatSize(f.size)}</span>
         <span class="f-act">
-          <button data-act="play">播放</button>
+          <button data-act="play">PLAY</button>
           <button data-act="dl">MP4</button>
-          <button data-act="del">刪</button>
+          <button data-act="del">DEL</button>
         </span>
       </div>`,
       )
@@ -179,11 +278,9 @@ async function removeRecording(id: string) {
 
 async function downloadMp4(id: string) {
   try {
-    await withProgress('匯出 MP4', (update) =>
-      exportRecording(id, update),
-    );
+    await withProgress('匯出 MP4', (update) => exportRecording(id, update));
   } catch {
-    showError('轉檔失敗', '檔案可能過大或瀏覽器記憶體不足，請稍後再試。');
+    showError('轉檔失敗', '檔案可能過大或瀏覽器記憶體不足。');
   }
 }
 
@@ -201,7 +298,7 @@ async function refreshStorage() {
   if (est.quota > 0) {
     const usedGB = (est.used / 1073741824).toFixed(2);
     const quotaGB = (est.quota / 1073741824).toFixed(1);
-    if (valEl) valEl.textContent = `${usedGB} / ${quotaGB} GB`;
+    if (valEl) valEl.textContent = `${usedGB}/${quotaGB}G`;
     if (fillEl) fillEl.style.width = `${Math.min(est.percent, 100)}%`;
   } else if (valEl) {
     valEl.textContent = formatSize(est.used);
@@ -222,7 +319,7 @@ async function openPlay(id: string) {
     showError('無法讀取錄影');
     return;
   }
-  await showPlayer(meta?.name ?? meta?.time ?? '播放', blob);
+  await showPlayer(meta?.time ?? 'PLAYBACK', blob);
 }
 
 function hideSplash() {
@@ -230,13 +327,12 @@ function hideSplash() {
 }
 
 async function init() {
-  document.getElementById('cam-name')!.textContent = CAM.name;
-  document.getElementById('cam-id-label')!.textContent = CAM.id;
-  document.getElementById('dvr-cam-label')!.textContent = `${CAM.name} · ${CAM.id}`;
-
   setInterval(updateClock, 1000);
   updateClock();
   setTimeout(hideSplash, 2000);
+
+  initViewport();
+  applyTransform();
 
   if (navigator.storage?.persist) {
     navigator.storage.persist().catch(() => {});
@@ -263,7 +359,7 @@ async function init() {
       const ok = await recorder!.start(48);
       if (!ok) {
         recBtn.disabled = false;
-        showError('無法開始錄影', '請確認直播已正常播放後再試。');
+        showError('無法開始錄影', '請確認直播已正常播放。');
       }
     }
   });

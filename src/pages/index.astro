@@ -7,66 +7,82 @@ import '../styles/global.css';
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <meta name="description" content="CCTV-RD 即時監視錄影" />
+    <meta name="description" content="羊家門前有相機 — 即時監視" />
     <link rel="icon" type="image/svg+xml" href={`${import.meta.env.BASE_URL}favicon.svg`} />
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link
-      href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700&family=Noto+Sans+TC:wght@400;500;700&display=swap"
+      href="https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=Noto+Sans+TC:wght@400;500;700&display=swap"
       rel="stylesheet"
     />
-    <title>CCTV-RD</title>
+    <title>羊家門前有相機</title>
   </head>
   <body>
     <div class="splash" id="splash">
-      <div class="splash-inner">
-        <div class="splash-mark"></div>
-        <div class="splash-name">CCTV-RD</div>
-        <div class="splash-line"><span></span></div>
-      </div>
+      <div class="splash-osd">SYS BOOT</div>
+      <div class="splash-title">羊家門前有相機 📷</div>
+      <div class="splash-bar"><span></span></div>
     </div>
 
     <div class="app">
       <header class="hdr">
-        <div class="hdr-left">
-          <span class="hdr-mark"></span>
-          <div>
-            <div class="hdr-title">即時監視</div>
-            <div class="hdr-sub" id="dvr-cam-label">載入中</div>
-          </div>
+        <div class="hdr-brand">
+          <span class="hdr-rec-dot" id="hdr-rec-dot"></span>
+          <h1 class="hdr-title">羊家門前有相機 📷</h1>
         </div>
-        <div class="hdr-mid">
+        <div class="hdr-status">
           <span class="sig" id="sig-dot"></span>
           <span class="sig-txt" id="sig-txt">連線中</span>
-          <span class="rec-tag" id="rec-ind">REC</span>
         </div>
-        <div class="hdr-right">
-          <span class="hdr-clock" id="clock">00:00:00</span>
-        </div>
+        <div class="hdr-clock" id="clock">00:00:00</div>
       </header>
 
       <div class="cors-warn" id="cors-warn">
-        直播來源可能因跨域限制無法載入，請使用 Chrome 或 Edge 並確認網路正常。
+        直播來源可能因跨域限制無法載入，請使用 Chrome 或 Edge。
       </div>
 
       <div class="layout">
-        <section class="monitor">
-          <div class="frame">
-            <div class="frame-corner tl"></div>
-            <div class="frame-corner tr"></div>
-            <div class="frame-corner bl"></div>
-            <div class="frame-corner br"></div>
-            <video id="live-video" autoplay muted playsinline crossorigin="anonymous"></video>
-            <div class="frame-bar">
-              <div class="frame-info">
-                <span class="frame-cam" id="cam-name">—</span>
-                <span class="frame-id" id="cam-id-label">C000024</span>
+        <section class="cctv-main">
+          <div class="bezel" id="bezel">
+            <div class="bezel-inner">
+              <div class="viewport" id="viewport">
+                <div class="video-stage" id="video-stage">
+                  <video id="live-video" autoplay muted playsinline crossorigin="anonymous"></video>
+                </div>
+                <div class="scanlines"></div>
+                <div class="vignette"></div>
+
+                <div class="osd osd-tl">
+                  <span class="osd-live">● LIVE</span>
+                  <span class="osd-rec" id="osd-rec">● REC</span>
+                </div>
+                <div class="osd osd-tr">
+                  <span class="osd-ch">CH01</span>
+                  <span class="osd-ts" id="live-ts">00:00:00</span>
+                </div>
+                <div class="osd osd-bl">
+                  <span class="osd-zoom-lvl" id="zoom-lvl">1.0×</span>
+                </div>
+
+                <div class="frame-load" id="player-spin">
+                  <div class="load-ring"></div>
+                  <span>SIGNAL ACQUIRING</span>
+                </div>
               </div>
-              <span class="frame-ts" id="live-ts">00:00:00</span>
-            </div>
-            <div class="frame-load" id="player-spin">
-              <div class="load-bar"></div>
-              <span>訊號接入中</span>
+
+              <div class="toolbar">
+                <div class="zoom-group">
+                  <span class="tb-label">ZOOM</span>
+                  <button class="tb-btn on" data-zoom="1">1×</button>
+                  <button class="tb-btn" data-zoom="1.5">1.5×</button>
+                  <button class="tb-btn" data-zoom="2">2×</button>
+                  <button class="tb-btn" data-zoom="3">3×</button>
+                </div>
+                <div class="tb-actions">
+                  <button class="tb-btn" id="btn-fit" title="重置">重置</button>
+                  <button class="tb-btn tb-fs" id="btn-fs">全螢幕</button>
+                </div>
+              </div>
             </div>
           </div>
         </section>
@@ -74,27 +90,27 @@ import '../styles/global.css';
         <aside class="panel">
           <div class="panel-block">
             <div class="panel-row">
-              <button class="btn-rec" id="rec-btn">開始錄影</button>
+              <button class="btn-rec" id="rec-btn">● REC 開始</button>
               <span class="rec-time" id="rec-timer"></span>
             </div>
-            <div class="rec-hint" id="rec-status">待機</div>
+            <div class="rec-hint" id="rec-status">STBY · 待機</div>
           </div>
 
           <div class="panel-block stats">
             <div class="stat">
               <span class="stat-n" id="st-total">0</span>
-              <span class="stat-l">錄影段數</span>
+              <span class="stat-l">TOTAL</span>
             </div>
             <div class="stat">
               <span class="stat-n" id="st-today">0</span>
-              <span class="stat-l">今日</span>
+              <span class="stat-l">TODAY</span>
             </div>
           </div>
 
           <div class="panel-block grow">
-            <div class="panel-hd">錄影紀錄</div>
+            <div class="panel-hd">PLAYBACK LOG</div>
             <div class="date-list" id="date-list">
-              <div class="empty">載入中</div>
+              <div class="empty">—</div>
             </div>
             <div class="file-list" id="dvr-files">
               <div class="empty">選擇日期</div>
@@ -102,7 +118,7 @@ import '../styles/global.css';
           </div>
 
           <div class="panel-block stor">
-            <span class="stor-lbl">本機瀏覽器</span>
+            <span class="stor-lbl">LOCAL</span>
             <div class="stor-track"><div class="stor-fill" id="stor-fill"></div></div>
             <span class="stor-val" id="stor-val">—</span>
           </div>
