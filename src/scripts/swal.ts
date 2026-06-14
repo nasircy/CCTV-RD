@@ -2,10 +2,10 @@ import Swal from 'sweetalert2';
 import 'sweetalert2/dist/sweetalert2.min.css';
 
 export const NySwal = Swal.mixin({
-  background: '#111111',
-  color: '#dddddd',
-  confirmButtonColor: '#c8960c',
-  cancelButtonColor: '#2a2a2a',
+  background: '#141412',
+  color: '#d8d4cc',
+  confirmButtonColor: '#6b8f71',
+  cancelButtonColor: '#3a3a34',
   customClass: {
     popup: 'ny-swal',
     title: 'ny-swal-title',
