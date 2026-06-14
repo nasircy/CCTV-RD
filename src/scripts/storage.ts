@@ -35,7 +35,6 @@ interface CctvDB extends DBSchema {
 }
 
 const DB_NAME = 'cctv-rd-v1';
-const RETENTION_DAYS = 10;
 
 let dbPromise: Promise<IDBPDatabase<CctvDB>> | null = null;
 
@@ -150,19 +149,6 @@ export async function getStorageEstimate(): Promise<{
   return { used, quota: 0, percent: 0 };
 }
 
-export async function cleanupOldRecordings(): Promise<number> {
-  const cutoff = Date.now() - RETENTION_DAYS * 86400000;
-  const recs = await listRecordings();
-  let removed = 0;
-  for (const r of recs) {
-    if (r.startTs < cutoff) {
-      await deleteRecording(r.id);
-      removed++;
-    }
-  }
-  return removed;
-}
-
 function downloadBlob(blob: Blob, filename: string) {
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a');
@@ -195,5 +181,3 @@ export async function exportRecording(
   const mp4 = await convertWebmToMp4(blob, onProgress);
   downloadBlob(mp4, mp4Filename(meta.name));
 }
-
-export { RETENTION_DAYS };

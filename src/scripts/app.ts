@@ -1,13 +1,11 @@
 import { HlsPlayer, BrowserRecorder, type CamConfig } from './recorder';
 import {
-  cleanupOldRecordings,
   deleteRecording,
   exportRecording,
   formatSize,
   getStorageEstimate,
   listRecordings,
   getRecordingBlob,
-  RETENTION_DAYS,
   type RecordingMeta,
 } from './storage';
 import { confirmDelete, showError, showPlayer, withProgress } from './swal';
@@ -194,7 +192,6 @@ function updateStats() {
   const td = recordings.filter((f) => f.date === today);
   document.getElementById('st-total')!.textContent = String(recordings.length);
   document.getElementById('st-today')!.textContent = String(td.length);
-  document.getElementById('st-ret')!.textContent = String(RETENTION_DAYS);
 }
 
 async function refreshStorage() {
@@ -271,7 +268,6 @@ async function init() {
     }
   });
 
-  await cleanupOldRecordings();
   await refreshRecordings();
   setInterval(refreshRecordings, 120000);
   setInterval(refreshStorage, 60000);
