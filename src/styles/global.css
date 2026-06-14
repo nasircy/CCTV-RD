@@ -45,6 +45,41 @@ html, body {
   transition: opacity 0.5s, visibility 0.5s;
 }
 .splash.hide { opacity: 0; visibility: hidden; pointer-events: none; }
+
+.splash-cam {
+  color: var(--green);
+  filter: drop-shadow(0 0 16px var(--green-glow));
+  animation: cam-in 0.7s ease both;
+}
+.cam-svg {
+  width: 72px;
+  height: 72px;
+  display: block;
+}
+.cam-lens-outer {
+  transform-origin: 40px 44px;
+  animation: lens-pulse 2.2s ease-in-out 0.5s infinite;
+}
+.cam-lens-core {
+  animation: lens-core 2.2s ease-in-out 0.5s infinite;
+}
+.cam-led {
+  animation: rec-blink 1s step-end infinite;
+}
+
+@keyframes cam-in {
+  from { opacity: 0; transform: scale(0.82) translateY(10px); }
+  to { opacity: 1; transform: scale(1) translateY(0); }
+}
+@keyframes lens-pulse {
+  0%, 100% { transform: scale(1); opacity: 1; }
+  50% { transform: scale(1.05); opacity: 0.8; }
+}
+@keyframes lens-core {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.45; }
+}
+
 .splash-osd {
   font-family: 'Share Tech Mono', monospace;
   font-size: 11px;
