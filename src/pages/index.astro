@@ -1,0 +1,134 @@
+---
+import '../styles/global.css';
+---
+
+<!doctype html>
+<html lang="zh-Hant-TW">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="description" content="CCTV-RD — 瀏覽器端監視錄影系統" />
+    <link rel="icon" type="image/svg+xml" href={`${import.meta.env.BASE_URL}favicon.svg`} />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap"
+      rel="stylesheet"
+    />
+    <title>CCTV-RD · 監視錄影</title>
+  </head>
+  <body>
+    <!-- Splash / 過場動畫 -->
+    <div class="splash" id="splash">
+      <div class="splash-scanline"></div>
+      <div class="splash-logo">C</div>
+      <div class="splash-title">CCTV-RD</div>
+      <div class="splash-sub">Browser DVR · 瀏覽器端監視錄影</div>
+      <div class="splash-bar"><div class="splash-bar-fill"></div></div>
+    </div>
+
+    <!-- Topbar -->
+    <header class="topbar">
+      <a href="#" class="topbar-brand">
+        <div class="logo">C</div>
+        <span>CCTV-RD</span>
+      </a>
+      <div class="topbar-right">
+        <span class="badge-live off" id="rec-badge">LIVE</span>
+        <span class="clock-top" id="clock">--:--:--</span>
+      </div>
+    </header>
+
+    <!-- Main -->
+    <main class="main">
+      <div class="page-hd">
+        <h1>
+          即時監視
+          <span class="rec-indicator" id="rec-ind"><span class="dot"></span>REC</span>
+        </h1>
+        <p id="dvr-cam-label">載入中...</p>
+      </div>
+
+      <div class="cors-warn" id="cors-warn">
+        ⚠ 若直播無法載入，可能是 CCTV 來源不允許跨域存取。請改用 Chrome / Edge，或在本機執行
+        <code>npm run dev</code> 測試。錄影需直播正常播放後才能開始。
+      </div>
+
+      <div class="dvr-grid">
+        <div class="player-wrap">
+          <video id="live-video" controls autoplay muted playsinline crossorigin="anonymous"></video>
+          <div class="player-spinner" id="player-spin">
+            <div class="spin-ring"></div>
+            <span class="spin-txt">載入中...</span>
+          </div>
+          <div class="player-overlay">
+            <div>
+              <div class="cam-label" id="cam-name">—</div>
+              <div class="cam-id" id="cam-id-label">CAM: —</div>
+            </div>
+            <div class="live-ts" id="live-ts">--:--:--</div>
+          </div>
+        </div>
+
+        <aside class="dvr-sidebar">
+          <div class="dvr-stats">
+            <div class="dvr-stat">
+              <div class="dvr-stat-val" id="st-conn">🟢</div>
+              <div class="dvr-stat-lbl">連線</div>
+            </div>
+            <div class="dvr-stat">
+              <div class="dvr-stat-val" id="st-total">0</div>
+              <div class="dvr-stat-lbl">總錄影</div>
+            </div>
+            <div class="dvr-stat">
+              <div class="dvr-stat-val" id="st-today">0</div>
+              <div class="dvr-stat-lbl">今日</div>
+            </div>
+            <div class="dvr-stat">
+              <div class="dvr-stat-val" id="st-ret">10天</div>
+              <div class="dvr-stat-lbl">保留</div>
+            </div>
+          </div>
+
+          <div class="dvr-ctl">
+            <button class="rec-btn idle" id="rec-btn">⏺ 開始錄影</button>
+            <span class="rec-timer" id="rec-timer"></span>
+            <span class="rec-status off" id="rec-status">● 待機</span>
+          </div>
+
+          <div class="dvr-dates">
+            <div class="dvr-dates-label">📅 日期</div>
+            <div class="date-list" id="date-list">
+              <div class="dvr-empty">載入中...</div>
+            </div>
+          </div>
+
+          <div class="dvr-files" id="dvr-files">
+            <div class="dvr-empty">請選擇日期</div>
+          </div>
+
+          <div class="stor-bar">
+            <span>💾</span>
+            <div class="track"><div class="fill" id="stor-fill" style="width:0"></div></div>
+            <span class="val" id="stor-val">計算中...</span>
+          </div>
+        </aside>
+      </div>
+    </main>
+
+    <!-- Playback Modal -->
+    <div class="modal-ny" id="modal">
+      <div class="modal-box">
+        <div class="modal-hd">
+          <span class="modal-ttl" id="modal-ttl">播放錄影</span>
+          <button class="modal-close" id="modal-close">✕</button>
+        </div>
+        <video id="pb" controls></video>
+      </div>
+    </div>
+
+    <script>
+      import '../scripts/app.ts';
+    </script>
+  </body>
+</html>
