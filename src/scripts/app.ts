@@ -27,17 +27,22 @@ function fmtRemain(sec: number): string {
   const h = Math.floor(sec / 3600);
   const m = Math.floor((sec % 3600) / 60);
   const s = sec % 60;
-  if (h > 0) return `${h}h ${m.toString().padStart(2, '0')}m`;
-  if (m > 0) return `${m}m ${s.toString().padStart(2, '0')}s`;
-  return `${s}s`;
+  if (h > 0) return `${h}:${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`;
+  return `${m}:${s.toString().padStart(2, '0')}`;
 }
 
 function updateClock() {
   const t = new Date().toLocaleTimeString('zh-TW', { hour12: false });
-  const clock = document.getElementById('clock');
-  const liveTs = document.getElementById('live-ts');
-  if (clock) clock.textContent = t;
-  if (liveTs) liveTs.textContent = t;
+  document.getElementById('clock')!.textContent = t;
+  document.getElementById('live-ts')!.textContent = t;
+}
+
+function setSignal(online: boolean) {
+  const dot = document.getElementById('sig-dot');
+  const txt = document.getElementById('sig-txt');
+  dot?.classList.toggle('on', online);
+  dot?.classList.toggle('off', !online);
+  if (txt) txt.textContent = online ? '訊號正常' : '重新連線';
 }
 
 function updateRecUI(active: boolean, remaining: number) {
@@ -45,42 +50,33 @@ function updateRecUI(active: boolean, remaining: number) {
   const recTimer = document.getElementById('rec-timer');
   const recStat = document.getElementById('rec-status');
   const recInd = document.getElementById('rec-ind');
-  const badge = document.getElementById('rec-badge');
 
   if (active && remaining > 0) {
-    recBtn.textContent = '⏹ 停止錄影';
-    recBtn.className = 'rec-btn active';
+    recBtn.textContent = '停止錄影';
+    recBtn.className = 'btn-rec active';
     recBtn.disabled = false;
     if (recStat) {
-      recStat.textContent = '● 錄影中';
-      recStat.className = 'rec-status on';
+      recStat.textContent = '錄影進行中';
+      recStat.className = 'rec-hint on';
     }
     recInd?.classList.add('show');
-    if (badge) {
-      badge.textContent = 'REC';
-      badge.className = 'badge-live';
-    }
     if (recTimer) {
       recTimer.textContent = fmtRemain(remaining);
-      recTimer.className = 'rec-timer' + (remaining < 300 ? ' warning' : '');
+      recTimer.className = 'rec-time' + (remaining < 300 ? ' warn' : '');
     }
   } else {
-    recBtn.textContent = '⏺ 開始錄影';
-    recBtn.className = 'rec-btn idle';
+    recBtn.textContent = '開始錄影';
+    recBtn.className = 'btn-rec';
     recBtn.disabled = false;
     if (recTimer) {
       recTimer.textContent = '';
-      recTimer.className = 'rec-timer';
+      recTimer.className = 'rec-time';
     }
     if (recStat) {
-      recStat.textContent = '● 待機';
-      recStat.className = 'rec-status off';
+      recStat.textContent = '待機';
+      recStat.className = 'rec-hint';
     }
     recInd?.classList.remove('show');
-    if (badge) {
-      badge.textContent = 'LIVE';
-      badge.className = 'badge-live off';
-    }
   }
 }
 
@@ -100,7 +96,7 @@ function renderDates() {
   if (!el) return;
 
   if (!dates.length) {
-    el.innerHTML = '<div class="dvr-empty">尚無錄影<br><span style="font-size:11px;color:var(--ny-dim)">點「開始錄影」即可在瀏覽器本地儲存</span></div>';
+    el.innerHTML = '<div class="empty">尚無錄影</div>';
     return;
   }
 
@@ -109,7 +105,7 @@ function renderDates() {
     .map(
       (d) => `
     <div class="d-item ${d === selDate ? 'on' : ''}" data-d="${d}">
-      <span class="d-date">${d === today ? '📅 今天' : d}</span>
+      <span>${d === today ? '今天' : d}</span>
       <span class="d-cnt">${g[d].length}</span>
     </div>`,
     )
@@ -135,12 +131,12 @@ function renderFiles(files: RecordingMeta[]) {
   if (!el) return;
 
   if (!files?.length) {
-    el.innerHTML = '<div class="dvr-empty">這天沒有錄影</div>';
+    el.innerHTML = '<div class="empty">這天沒有錄影</div>';
     return;
   }
 
   el.innerHTML =
-    `<div class="f-grp-label">共 ${files.length} 段 · WebM 格式</div>` +
+    `<div class="f-grp">${files.length} 段錄影</div>` +
     files
       .map(
         (f) => `
@@ -148,9 +144,9 @@ function renderFiles(files: RecordingMeta[]) {
         <span class="f-time">${f.time}</span>
         <span class="f-sz">${formatSize(f.size)}</span>
         <span class="f-act">
-          <button data-act="play" title="播放">▶</button>
-          <button data-act="dl" title="下載">↓</button>
-          <button data-act="del" title="刪除">✕</button>
+          <button data-act="play">播放</button>
+          <button data-act="dl">下載</button>
+          <button data-act="del">刪</button>
         </span>
       </div>`,
       )
@@ -180,12 +176,9 @@ function renderFiles(files: RecordingMeta[]) {
 function updateStats() {
   const today = new Date().toISOString().slice(0, 10);
   const td = recordings.filter((f) => f.date === today);
-  const totalEl = document.getElementById('st-total');
-  const todayEl = document.getElementById('st-today');
-  const retEl = document.getElementById('st-ret');
-  if (totalEl) totalEl.textContent = String(recordings.length);
-  if (todayEl) todayEl.textContent = String(td.length);
-  if (retEl) retEl.textContent = `${RETENTION_DAYS}天`;
+  document.getElementById('st-total')!.textContent = String(recordings.length);
+  document.getElementById('st-today')!.textContent = String(td.length);
+  document.getElementById('st-ret')!.textContent = String(RETENTION_DAYS);
 }
 
 async function refreshStorage() {
@@ -216,10 +209,10 @@ async function openPlay(id: string) {
   const meta = recordings.find((r) => r.id === id);
   if (!modal || !pb) return;
 
-  if (ttl) ttl.textContent = meta ? `📹 ${meta.name}` : '播放錄影';
+  if (ttl) ttl.textContent = meta?.name ?? '播放';
   const blob = await getRecordingBlob(id);
   if (!blob) {
-    alert('無法讀取錄影資料');
+    alert('無法讀取錄影');
     return;
   }
   pb.src = URL.createObjectURL(blob);
@@ -232,7 +225,7 @@ async function openPlay(id: string) {
 function closePlay() {
   const modal = document.getElementById('modal');
   const pb = document.getElementById('pb') as HTMLVideoElement;
-  if (modal) modal.classList.remove('show');
+  modal?.classList.remove('show');
   if (pb) {
     pb.pause();
     if (pb.src.startsWith('blob:')) URL.revokeObjectURL(pb.src);
@@ -242,21 +235,17 @@ function closePlay() {
 }
 
 function hideSplash() {
-  const splash = document.getElementById('splash');
-  splash?.classList.add('hide');
-  setTimeout(() => splash?.remove(), 900);
+  document.getElementById('splash')?.classList.add('hide');
 }
 
 async function init() {
   document.getElementById('cam-name')!.textContent = CAM.name;
-  document.getElementById('cam-id-label')!.textContent = `CAM: ${CAM.id}`;
-  document.getElementById('dvr-cam-label')!.textContent =
-    `${CAM.name} · ${CAM.id}`;
+  document.getElementById('cam-id-label')!.textContent = CAM.id;
+  document.getElementById('dvr-cam-label')!.textContent = `${CAM.name} · ${CAM.id}`;
 
   setInterval(updateClock, 1000);
   updateClock();
-
-  setTimeout(hideSplash, 2600);
+  setTimeout(hideSplash, 2000);
 
   if (navigator.storage?.persist) {
     navigator.storage.persist().catch(() => {});
@@ -267,7 +256,8 @@ async function init() {
   const corsWarn = document.getElementById('cors-warn');
 
   player = new HlsPlayer(video, CAM.streamUrl);
-  player.setOnError((msg) => corsWarn?.classList.add('show'));
+  player.setOnError(() => corsWarn?.classList.add('show'));
+  player.setOnStatus(setSignal);
   player.start(spinner);
 
   recorder = new BrowserRecorder(video, CAM);

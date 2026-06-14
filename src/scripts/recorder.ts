@@ -32,61 +32,171 @@ export class HlsPlayer {
   private hls: Hls | null = null;
   private video: HTMLVideoElement;
   private streamUrl: string;
+  private spinner: HTMLElement | null = null;
+  private stallTimer: ReturnType<typeof setTimeout> | null = null;
+  private keepAliveTimer: ReturnType<typeof setInterval> | null = null;
+  private restartTimer: ReturnType<typeof setTimeout> | null = null;
+  private destroyed = false;
   private onError?: (msg: string) => void;
+  private onStatus?: (online: boolean) => void;
 
   constructor(video: HTMLVideoElement, streamUrl: string) {
     this.video = video;
     this.streamUrl = streamUrl;
+    this.video.autoplay = true;
+    this.video.muted = true;
+    this.video.playsInline = true;
+    this.video.preload = 'auto';
   }
 
   setOnError(cb: (msg: string) => void) {
     this.onError = cb;
   }
 
+  setOnStatus(cb: (online: boolean) => void) {
+    this.onStatus = cb;
+  }
+
   start(spinner: HTMLElement) {
-    const spinTxt = spinner.querySelector('.spin-txt');
+    this.spinner = spinner;
+    this.destroyed = false;
+    this.bindVideoEvents();
+    this.startKeepAlive();
+
     if (Hls.isSupported()) {
-      this.hls = new Hls({
-        lowLatencyMode: true,
-        maxBufferLength: 30,
-        xhrSetup: (xhr) => {
-          xhr.withCredentials = false;
-        },
-      });
-      this.hls.loadSource(this.streamUrl);
-      this.hls.attachMedia(this.video);
-      this.hls.on(Hls.Events.MANIFEST_PARSED, () => {
-        this.video.play().catch(() => {});
-        spinner.classList.add('hide');
-      });
-      this.hls.on(Hls.Events.ERROR, (_, data) => {
-        if (data.fatal) {
-          spinner.classList.remove('hide');
-          if (spinTxt) spinTxt.textContent = '重連中...';
-          if (data.type === Hls.ErrorTypes.NETWORK_ERROR) {
-            this.onError?.('串流連線失敗（可能為 CORS 限制）');
-          }
-          setTimeout(() => this.restart(spinner), 6000);
-        }
-      });
+      this.startHls();
     } else if (this.video.canPlayType('application/vnd.apple.mpegurl')) {
-      this.video.src = this.streamUrl;
-      this.video.play().catch(() => {});
-      spinner.classList.add('hide');
+      this.startNative();
     } else {
       this.onError?.('此瀏覽器不支援 HLS 播放');
     }
-
-    this.video.addEventListener('waiting', () => spinner.classList.remove('hide'));
-    this.video.addEventListener('playing', () => spinner.classList.add('hide'));
   }
 
-  private restart(spinner: HTMLElement) {
-    this.destroy();
-    this.start(spinner);
+  private bindVideoEvents() {
+    this.video.addEventListener('playing', () => this.onPlaying());
+    this.video.addEventListener('waiting', () => this.onWaiting());
+    this.video.addEventListener('stalled', () => this.onWaiting());
+    this.video.addEventListener('pause', () => {
+      if (!this.destroyed && this.video.readyState < 3) {
+        this.video.play().catch(() => {});
+      }
+    });
+  }
+
+  private onWaiting() {
+    if (this.stallTimer) return;
+    this.stallTimer = setTimeout(() => {
+      this.stallTimer = null;
+      this.spinner?.classList.remove('hide');
+      this.hls?.startLoad();
+      this.video.play().catch(() => {});
+    }, 3000);
+  }
+
+  private onPlaying() {
+    if (this.stallTimer) {
+      clearTimeout(this.stallTimer);
+      this.stallTimer = null;
+    }
+    this.spinner?.classList.add('hide');
+    this.onStatus?.(true);
+  }
+
+  private startKeepAlive() {
+    if (this.keepAliveTimer) clearInterval(this.keepAliveTimer);
+    this.keepAliveTimer = setInterval(() => {
+      if (this.destroyed) return;
+      if (this.video.paused && this.video.readyState >= 2) {
+        this.video.play().catch(() => {});
+      }
+      if (this.hls?.liveSyncPosition && this.video.duration > 0) {
+        const live = this.hls.liveSyncPosition;
+        const drift = live - this.video.currentTime;
+        if (drift > 20) {
+          this.video.currentTime = live - 3;
+        }
+      }
+    }, 8000);
+  }
+
+  private createHlsConfig(): Partial<Hls['config']> {
+    return {
+      enableWorker: true,
+      lowLatencyMode: false,
+      liveSyncDurationCount: 3,
+      liveMaxLatencyDurationCount: 12,
+      liveDurationInfinity: true,
+      maxBufferLength: 90,
+      maxMaxBufferLength: 180,
+      backBufferLength: 60,
+      maxBufferSize: 80 * 1000 * 1000,
+      maxBufferHole: 0.5,
+      highBufferWatchdogPeriod: 2,
+      nudgeOffset: 0.1,
+      nudgeMaxRetry: 8,
+      startFragPrefetch: true,
+      testBandwidth: false,
+      fragLoadingMaxRetry: 8,
+      fragLoadingRetryDelay: 500,
+      manifestLoadingMaxRetry: 6,
+      manifestLoadingRetryDelay: 500,
+      levelLoadingMaxRetry: 6,
+      xhrSetup: (xhr) => {
+        xhr.withCredentials = false;
+      },
+    };
+  }
+
+  private startHls() {
+    this.hls?.destroy();
+    this.hls = new Hls(this.createHlsConfig());
+    this.hls.loadSource(this.streamUrl);
+    this.hls.attachMedia(this.video);
+
+    this.hls.on(Hls.Events.MANIFEST_PARSED, () => {
+      this.video.play().catch(() => {});
+    });
+
+    this.hls.on(Hls.Events.ERROR, (_, data) => {
+      if (this.destroyed) return;
+      if (!data.fatal) return;
+
+      if (data.type === Hls.ErrorTypes.NETWORK_ERROR) {
+        this.hls?.startLoad();
+        return;
+      }
+      if (data.type === Hls.ErrorTypes.MEDIA_ERROR) {
+        this.hls?.recoverMediaError();
+        return;
+      }
+      this.scheduleRestart();
+    });
+  }
+
+  private startNative() {
+    this.video.src = this.streamUrl;
+    this.video.play().catch(() => {});
+  }
+
+  private scheduleRestart() {
+    if (this.restartTimer || this.destroyed) return;
+    this.spinner?.classList.remove('hide');
+    this.onStatus?.(false);
+    this.restartTimer = setTimeout(() => {
+      this.restartTimer = null;
+      if (this.destroyed) return;
+      this.hls?.destroy();
+      this.hls = null;
+      if (Hls.isSupported()) this.startHls();
+      else this.startNative();
+    }, 4000);
   }
 
   destroy() {
+    this.destroyed = true;
+    if (this.stallTimer) clearTimeout(this.stallTimer);
+    if (this.restartTimer) clearTimeout(this.restartTimer);
+    if (this.keepAliveTimer) clearInterval(this.keepAliveTimer);
     this.hls?.destroy();
     this.hls = null;
   }
@@ -137,7 +247,7 @@ export class BrowserRecorder {
     const stream = (this.video as HTMLVideoElement & { captureStream?: () => MediaStream })
       .captureStream?.();
     if (!stream) {
-      alert('無法擷取影片串流。請確認直播已正常播放（CORS 可能阻擋錄影）。');
+      alert('無法擷取影片串流，請確認直播已正常播放。');
       return false;
     }
 
@@ -180,10 +290,6 @@ export class BrowserRecorder {
       }
     };
 
-    this.recorder.onerror = () => {
-      console.error('MediaRecorder error');
-    };
-
     this.recorder.start(CHUNK_MS);
   }
 
@@ -197,14 +303,13 @@ export class BrowserRecorder {
 
     return new Promise((resolve) => {
       const rec = this.recorder!;
-      const id = this.currentId;
       const startDate = new Date(this.segmentStart);
 
       rec.onstop = async () => {
         const pad = (n: number) => n.toString().padStart(2, '0');
         const name = makeRecordingName(startDate);
         const meta = await finalizeRecording({
-          id,
+          id: this.currentId,
           camId: this.cam.id,
           name: `${name}.webm`,
           date: `${startDate.getFullYear()}-${pad(startDate.getMonth() + 1)}-${pad(startDate.getDate())}`,
